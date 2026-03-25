@@ -2,6 +2,8 @@ import os
 import json
 import base64
 import io
+import sqlite3
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask import Flask, request, send_file, jsonify, send_from_directory
 from flask_cors import CORS
 from cryptography.hazmat.primitives import hashes, serialization
@@ -166,7 +168,7 @@ def encrypt_flow():
             io.BytesIO(stego_image),
             mimetype='image/png',
             as_attachment=True,
-            download_name='cipher_vault_secure.png'
+            download_name='cyberpunk_secure.png'
         )
         
     except ValueError as e:
@@ -178,10 +180,19 @@ def encrypt_flow():
 def decrypt_flow():
     try:
         email = request.form.get('email')
+        password = request.form.get('password')
         image_file = request.files.get('image')
         
-        if not email or not image_file:
-            return jsonify({"error": "Missing required fields"}), 400
+        if not email or not password or not image_file:
+            return jsonify({"error": "Email, password, and image are required"}), 400
+
+        # 0. Authenticate user against DB
+        conn = get_db()
+        user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        conn.close()
+
+        if not user or not check_password_hash(user['password_hash'], password):
+            return jsonify({"error": "Invalid credentials. Login required."}), 401
             
         image_bytes = image_file.read()
         
@@ -213,6 +224,101 @@ def decrypt_flow():
         
     except Exception as e:
         return jsonify({"error": "Failed to decrypt image: " + str(e)}), 500
+
+# ── SQLite Database Setup ────────────────────────
+DB_PATH = 'ciphervault.db'
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# ── Auth Endpoints ───────────────────────────────
+@app.route('/api/signup', methods=['POST'])
+def signup():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid request"}), 400
+
+        name = data.get('name', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+
+        if not name or not email or not password:
+            return jsonify({"error": "All fields are required."}), 400
+        if len(password) < 4:
+            return jsonify({"error": "Password must be at least 4 characters."}), 400
+
+        password_hash = generate_password_hash(password)
+
+        conn = get_db()
+        try:
+            conn.execute(
+                'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
+                (name, email, password_hash)
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            return jsonify({"error": "Email already registered."}), 409
+        finally:
+            conn.close()
+
+        return jsonify({"success": True, "name": name, "email": email}), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid request"}), 400
+
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+
+        if not email or not password:
+            return jsonify({"error": "All fields are required."}), 400
+
+        conn = get_db()
+        user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        conn.close()
+
+        if not user or not check_password_hash(user['password_hash'], password):
+            return jsonify({"error": "Invalid credentials."}), 401
+
+        return jsonify({"success": True, "name": user['name'], "email": user['email']})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/check-email', methods=['GET'])
+def check_email():
+    email = request.args.get('email', '').strip()
+    if not email:
+        return jsonify({"exists": False}), 400
+    conn = get_db()
+    user = conn.execute('SELECT id FROM users WHERE email = ?', (email,)).fetchone()
+    conn.close()
+    return jsonify({"exists": user is not None})
 
 # ── Static File Serving ──────────────────────────
 @app.route('/')

@@ -1,10 +1,10 @@
 /* ==============================================
-   CipherVault — Premium Cybersecurity Theme
+   Cyberpunk — Premium Cybersecurity Theme
    ==============================================
    Design philosophy: controlled, cinematic, expensive.
    Color palette: dark navy / black base,
                   neon cyan / blue accents,
-                  soft purple secondary glow.
+                  hot pink / purple secondary glow.
    ============================================== */
 
 /* ── CSS Variables ────────────────────────────── */
@@ -18,10 +18,13 @@
   /* Accent colours */
   --cyan:          #00e5ff;
   --cyan-dim:      rgba(0, 229, 255, 0.15);
-  --cyan-glow:     rgba(0, 229, 255, 0.35);
+  --cyan-glow:     rgba(0, 229, 255, 0.45);
   --blue:          #3d8bfd;
   --purple:        #a855f7;
   --purple-dim:    rgba(168, 85, 247, 0.15);
+  --pink:          #ff2d95;
+  --pink-dim:      rgba(255, 45, 149, 0.12);
+  --pink-glow:     rgba(255, 45, 149, 0.35);
   --green:         #22d3ee;
   --green-dim:     rgba(34, 211, 238, 0.12);
 
@@ -84,7 +87,7 @@ input, textarea { font-family: inherit; }
   pointer-events: none;
   z-index: 99999;
   will-change: transform;
-  box-shadow: 0 0 6px var(--cyan-glow), 0 0 12px rgba(0, 229, 255, 0.15);
+  box-shadow: 0 0 8px var(--cyan-glow), 0 0 16px rgba(0, 229, 255, 0.2);
 }
 
 .cursor-ring {
@@ -549,7 +552,7 @@ input, textarea { font-family: inherit; }
 }
 .hero-glow--2 {
   width: 550px; height: 550px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.2), transparent 70%);
+  background: radial-gradient(circle, rgba(255, 45, 149, 0.22), transparent 70%);
   bottom: -12%; right: -10%;
   animation: float-glow 16s ease-in-out 2s infinite alternate-reverse;
 }
@@ -596,8 +599,9 @@ input, textarea { font-family: inherit; }
   background: linear-gradient(
     180deg,
     #ffffff 0%,
-    #c8e6ff 25%,
-    var(--cyan) 60%,
+    #c8e6ff 20%,
+    var(--cyan) 50%,
+    var(--pink) 85%,
     var(--purple) 100%
   );
   -webkit-background-clip: text;
@@ -692,7 +696,7 @@ input, textarea { font-family: inherit; }
 }
 .btn--primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(0, 229, 255, 0.18), 0 0 0 1px var(--cyan-glow);
+  box-shadow: 0 8px 32px rgba(0, 229, 255, 0.25), 0 0 0 1px var(--cyan-glow), 0 0 60px rgba(0, 229, 255, 0.08);
 }
 .btn--primary:active {
   transform: translateY(0);
@@ -865,7 +869,7 @@ input, textarea { font-family: inherit; }
 .feature-card:hover {
   border-color: var(--cyan-glow);
   transform: translateY(-6px);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--cyan-dim);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--cyan-dim), 0 0 40px rgba(0, 229, 255, 0.06);
 }
 .card-accent {
   position: absolute;
@@ -1493,10 +1497,10 @@ input, textarea { font-family: inherit; }
 .progress-bar-fill {
   width: 0%;
   height: 100%;
-  background: linear-gradient(90deg, var(--cyan), var(--purple));
+  background: linear-gradient(90deg, var(--cyan), var(--pink), var(--purple));
   border-radius: 10px;
   transition: width 0.4s ease-out;
-  box-shadow: 0 0 10px var(--cyan-glow);
+  box-shadow: 0 0 14px var(--cyan-glow), 0 0 30px var(--pink-dim);
 }
 .progress-status {
   font-family: var(--font-mono);

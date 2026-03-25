@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── 3. Hero Text Scramble (per-letter) ──────────
   const heroTitle = document.getElementById('hero-title');
   const letters   = heroTitle.querySelectorAll('.letter');
-  const finalText = 'CipherVault';
+  const finalText = 'Cyberpunk';
   const scrambleChars = '!@#$%^&*_+-={}|;:<>?0123456789ABCDEF';
 
   /** Scramble animation: each letter resolves sequentially */
@@ -332,10 +332,21 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadReady.classList.remove('active');
     
     try {
-      updateEncryptProgress(10, 'Initializing security modules...');
+      // 0. Validate receiver email exists in database
+      updateEncryptProgress(5, 'Validating receiver identity...');
+      const checkRes = await fetch(`/api/check-email?email=${encodeURIComponent(email)}`);
+      const checkData = await checkRes.json();
+      if (!checkData.exists) {
+        alert('This user is not registered on Cyberpunk');
+        encryptProgress.classList.remove('active');
+        btnProcessSecure.disabled = false;
+        return;
+      }
+
+      updateEncryptProgress(15, 'Initializing security modules...');
       await new Promise(r => setTimeout(r, 600));
       
-      updateEncryptProgress(30, 'Encrypting message with AES-GCM...');
+      updateEncryptProgress(35, 'Encrypting message with AES-GCM...');
       await new Promise(r => setTimeout(r, 800));
 
       updateEncryptProgress(60, 'Wrapping keys with RSA-2048...');
@@ -408,11 +419,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   btnDecrypt.addEventListener('click', async () => {
-    const email = decryptEmail.value.trim();
-    const file  = decryptFileInput.files[0];
+    const email    = decryptEmail.value.trim();
+    const password = document.getElementById('decrypt-password').value;
+    const file     = decryptFileInput.files[0];
 
-    if (!email || !file) {
-      alert('Email and stego image are required');
+    if (!email || !password || !file) {
+      alert('Email, password, and stego image are required');
       return;
     }
 
@@ -421,19 +433,30 @@ document.addEventListener('DOMContentLoaded', () => {
     unauthorizedWarn.classList.remove('active');
 
     try {
-      updateDecryptProgress(20, 'Connecting to secure node...');
+      updateDecryptProgress(15, 'Authenticating credentials...');
       await new Promise(r => setTimeout(r, 600));
 
-      updateDecryptProgress(50, 'Extracting LSB payload...');
+      updateDecryptProgress(40, 'Extracting LSB payload...');
       
       const formData = new FormData();
       formData.append('email', email);
+      formData.append('password', password);
       formData.append('image', file);
 
       const response = await fetch('/api/decrypt', {
         method: 'POST',
         body: formData
       });
+
+      if (response.status === 401) {
+        updateDecryptProgress(100, 'Authentication failed');
+        setTimeout(() => {
+          decryptProgress.classList.remove('active');
+          unauthorizedWarn.classList.add('active');
+          btnDecrypt.disabled = false;
+        }, 500);
+        return;
+      }
 
       if (response.status === 403) {
         updateDecryptProgress(100, 'Identity verification failed');
@@ -567,8 +590,8 @@ document.addEventListener('DOMContentLoaded', () => {
     showForm(loginForm);
   });
 
-  // ── Signup — store in localStorage ──────────
-  document.getElementById('signup-submit').addEventListener('click', () => {
+  // ── Signup — call backend API ──────────────
+  document.getElementById('signup-submit').addEventListener('click', async () => {
     const name    = document.getElementById('signup-name').value.trim();
     const email   = document.getElementById('signup-email').value.trim();
     const pass    = document.getElementById('signup-password').value;
@@ -579,45 +602,86 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pass.length < 4) { err.textContent = 'Password must be at least 4 characters.'; return; }
     if (pass !== confirm) { err.textContent = 'Passwords do not match.'; return; }
 
-    // Store credentials
-    const users = JSON.parse(localStorage.getItem('cv_users') || '{}');
-    if (users[email]) { err.textContent = 'Email already registered.'; return; }
-    users[email] = { name, password: pass };
-    localStorage.setItem('cv_users', JSON.stringify(users));
+    try {
+      const res = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password: pass })
+      });
+      const data = await res.json();
 
-    // Success
-    showForm(successPanel);
-    setTimeout(() => {
-      closeAuth();
+      if (!res.ok) {
+        err.textContent = data.error || 'Signup failed.';
+        return;
+      }
+
+      // Save session
+      localStorage.setItem('cv_session', JSON.stringify({ name: data.name, email: data.email }));
+      updateNavbarForUser(data.name);
+
+      // Success
+      showForm(successPanel);
       setTimeout(() => {
-        document.getElementById('encrypt').scrollIntoView({ behavior: 'smooth' });
-      }, 500);
-    }, 1500);
+        closeAuth();
+      }, 1500);
+    } catch (e) {
+      err.textContent = 'Network error. Try again.';
+    }
   });
 
-  // ── Login — check localStorage ─────────────
-  document.getElementById('login-submit').addEventListener('click', () => {
+  // ── Login — call backend API ─────────────
+  document.getElementById('login-submit').addEventListener('click', async () => {
     const email = document.getElementById('login-email').value.trim();
     const pass  = document.getElementById('login-password').value;
     const err   = document.getElementById('login-error');
 
     if (!email || !pass) { err.textContent = 'All fields are required.'; return; }
 
-    const users = JSON.parse(localStorage.getItem('cv_users') || '{}');
-    if (!users[email] || users[email].password !== pass) {
-      err.textContent = 'Invalid credentials.';
-      return;
-    }
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass })
+      });
+      const data = await res.json();
 
-    // Success
-    showForm(successPanel);
-    setTimeout(() => {
-      closeAuth();
+      if (!res.ok) {
+        err.textContent = data.error || 'Invalid credentials.';
+        return;
+      }
+
+      // Save session
+      localStorage.setItem('cv_session', JSON.stringify({ name: data.name, email: data.email }));
+      updateNavbarForUser(data.name);
+
+      // Success
+      showForm(successPanel);
       setTimeout(() => {
-        document.getElementById('encrypt').scrollIntoView({ behavior: 'smooth' });
-      }, 500);
-    }, 1500);
+        closeAuth();
+      }, 1500);
+    } catch (e) {
+      err.textContent = 'Network error. Try again.';
+    }
   });
+
+  // ── Navbar Session Persistence ──────────────
+  function updateNavbarForUser(name) {
+    const authDiv = document.querySelector('.nav-auth');
+    authDiv.innerHTML = `
+      <span style="font-size:0.82rem;color:var(--cyan);font-weight:500;">Hi, ${name}</span>
+      <button class="nav-auth-btn nav-auth-login" id="nav-logout-btn">Logout</button>
+    `;
+    document.getElementById('nav-logout-btn').addEventListener('click', () => {
+      localStorage.removeItem('cv_session');
+      location.reload();
+    });
+  }
+
+  // Restore session on load
+  const savedSession = JSON.parse(localStorage.getItem('cv_session') || 'null');
+  if (savedSession && savedSession.name) {
+    updateNavbarForUser(savedSession.name);
+  }
 
 
   // ── 12. Custom Cursor System ──────────────────
